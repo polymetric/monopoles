@@ -36,20 +36,33 @@ class Monopole {
   }
   
   void interact(Monopole other) {
+    if (parent.body.m_type == BodyType.STATIC) {
+      if (forceArrowsEnabled) {
+        ForceArrow arrow = new ForceArrow();
+        arrow.origin = box2d.coordWorldToPixelsPVector(this.pos);
+        arrow.force = new PVector(parent.strength, 0);
+        arrow.force.rotate(-parent.body.getAngle());
+        forceArrows.add(arrow);
+      }
+      return;
+    }
     Vec2 force = other.pos.sub(this.pos);
     float dist = force.length();
     force.normalize();
     force.mulLocal(1 / (dist * dist));
     force.mulLocal(this.strength * other.strength);
+    println(other.strength);
     if (this.poleType == other.poleType) {
       force.negateLocal();
     }
     force.mulLocal(1e5);
     //System.out.printf("%24.12f ", force.length());
     parent.body.applyForce(force, this.pos);
-    ForceArrow arrow = new ForceArrow();
-    arrow.origin = box2d.coordWorldToPixelsPVector(this.pos);
-    arrow.force = box2d.vectorWorldToPixelsPVector(force.mul(1e-4));
-    forceArrows.add(arrow);
+    if (parent.body.m_type == BodyType.DYNAMIC && forceArrowsEnabled) {
+      ForceArrow arrow = new ForceArrow();
+      arrow.origin = box2d.coordWorldToPixelsPVector(this.pos);
+      arrow.force = box2d.vectorWorldToPixelsPVector(force.mul(1e-4));
+      forceArrows.add(arrow);
+    }
   }
 }
