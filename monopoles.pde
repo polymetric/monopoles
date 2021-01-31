@@ -6,12 +6,15 @@ import org.jbox2d.dynamics.joints.*;
 
 final float PI_23RDS = PI * 2 / 3;
 
-final int statorCoilCount = 3;
-final int rotorMagnetCount = 2;
+final int statorCoilCount = 21;
+final int rotorMagnetCount = 14;
 
-int phase = 0;
+int time;
 
-boolean forceArrowsEnabled = true;
+float voltage;
+int phase;
+
+boolean forceArrowsEnabled = false;
 
 Box2DProcessing box2d;
 
@@ -27,8 +30,10 @@ ArrayList<ForceArrow> forceArrows;
 void setup() {
   size(800, 800);
   smooth(8);
-  frameRate(60);
+  frameRate(600);
   
+  phase = 0;
+  time = 0;
   firstRotorMagnet = null;
 
   box2d = new Box2DProcessing(this);
@@ -74,7 +79,7 @@ void setup() {
     } else {
       angle = -angle + PI / 2;
     }
-    Magnet m = new Magnet(pos, angle, 10, 1, BodyType.DYNAMIC, Group.ROTOR, 1, .1);
+    Magnet m = new Magnet(pos, angle, 10, 1, BodyType.DYNAMIC, Group.ROTOR, .5, 1);
     magnets.add(m);
     rotorMagnets.add(m);
     
@@ -107,7 +112,7 @@ void setup() {
     RevoluteJointDef jd = new RevoluteJointDef();
     jd.initialize(bearing.body, m.body, bearing.body.getWorldCenter());
     jd.motorSpeed = 0;
-    jd.maxMotorTorque = 100;
+    jd.maxMotorTorque = 1e3;
     jd.enableMotor = true;
     box2d.world.createJoint(jd);
     
@@ -119,18 +124,40 @@ void draw() {
   background(32);
   
   // temp debug
-  if (mousePressed) {
-    magnets.get(0).body.setTransform(box2d.coordPixelsToWorld(mouseX, mouseY), magnets.get(0).body.getAngle());
-  }
+  //if (mousePressed) {
+  //  magnets.get(0).body.setTransform(box2d.coordPixelsToWorld(mouseX, mouseY), magnets.get(0).body.getAngle());
+  //}
   
   // commutation
-  float rotorpos = rotorMagnets.get(0).body.getAngle() + PI / 2;
-  float voltage = 5;
+  float rotorpos = rotorMagnets.get(0).body.getAngle();
+  // quantize angle to simulate an encoder or magnetic sensor
+  int cpr = 2400;
+  int rotorposI = (int) (rotorpos / (PI * 2) * cpr);
+  rotorpos = (float) rotorposI / cpr * PI * 2;
+  
+  // PID
+  float target = -atan2(mouseX-width/2, mouseY-height/2);
+  float error = target - rotorpos;
+  
+  voltage = map(mouseY, 0, height, -24, 24);
+  //voltage = error;
+  
+  rotorpos = (rotorpos + (PI / 2)) * (rotorMagnetCount / 2);
+  
+  // 3 phase
   for (int i = 0; i < statorCoilCount; i += 3) {
-    statorCoils.get(i).strength   = sin(rotorpos)                * voltage;
-    statorCoils.get(i+1).strength = sin(rotorpos + PI_23RDS)     * voltage;
+    statorCoils.get(i+0).strength = sin(rotorpos + PI_23RDS * 0) * voltage;
+    statorCoils.get(i+1).strength = sin(rotorpos + PI_23RDS * 1) * voltage;
     statorCoils.get(i+2).strength = sin(rotorpos + PI_23RDS * 2) * voltage;
   }
+  
+  // 2 phase
+  //for (int i = 0; i < statorCoilCount; i += 4) {
+  //  statorCoils.get(i+0).strength = sin(rotorpos) *  voltage;
+  //  statorCoils.get(i+1).strength = cos(rotorpos) *  voltage;
+  //  statorCoils.get(i+2).strength = sin(rotorpos) * -voltage;
+  //  statorCoils.get(i+3).strength = cos(rotorpos) * -voltage;
+  //}
   
   //switch (phase) {
   //  case 0:
@@ -157,7 +184,7 @@ void draw() {
   //}
   
   // physics
-  box2d.step();
+  box2d.step(1.0/600, 10, 8);
   for (Magnet m : magnets) {
     m.updatePolePositions();
     m.draw();
@@ -168,10 +195,16 @@ void draw() {
       }
     }
   }
+  
+  // draw force arrows
   for (ForceArrow a : forceArrows) {
     a.draw();
   }
   forceArrows.clear();
+  
+  //System.out.printf("%12d %24.12f\n", time, firstRotorMagnet.body.m_torque / (PI * 2) * 60);
+  System.out.printf("%12d %24.12f\n", time, firstRotorMagnet.body.getAngularVelocity() / (PI * 2) * 60);
+  time += 1;
 }
 
 void keyPressed() {

@@ -40,7 +40,7 @@ class Monopole {
       if (forceArrowsEnabled) {
         ForceArrow arrow = new ForceArrow();
         arrow.origin = box2d.coordWorldToPixelsPVector(this.pos);
-        arrow.force = new PVector(parent.strength, 0);
+        arrow.force = new PVector(parent.strength * 5e-1, 0);
         arrow.force.rotate(-parent.body.getAngle());
         forceArrows.add(arrow);
       }
@@ -51,7 +51,6 @@ class Monopole {
     force.normalize();
     force.mulLocal(1 / (dist * dist));
     force.mulLocal(this.strength * other.strength);
-    println(other.strength);
     if (this.poleType == other.poleType) {
       force.negateLocal();
     }
